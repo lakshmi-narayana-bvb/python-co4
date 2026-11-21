@@ -1,0 +1,62 @@
+"""Task 2 - biometric attendance: monthly percentage, students below 75 %, log of damaged lines."""
+from pathlib import Path
+
+class InvalidRecord(Exception):
+	pass
+
+def parse_line(line):
+	parts = line.strip().split(".")
+	if len(parts) != 3:
+		raise InvalidRecord(f"expected 3 fields, found {len(parts)}")
+	regno, date, status = (p.strip() for p in parts)
+	if not regno:
+		raise InvalidRecord("empty register number")
+	if status not in ("P", "A"):
+		raise InvalidRecord(f"invalid status {status!r}")
+	return regno, date, status
+
+def process_month(folder, out_folder):
+	"""Read every daily file once, accumulate counts in a dictionary, write 3 output files."""
+	counts = {}        # regno -> [present, total]
+	errors = []        # (file name, line number, message, text)
+	files = sorted(Path(folder).glob("attendance_*.txt"))
+	for path in files:
+		try:
+			with open(path, "r", encoding="utf-8") as f:
+				for number, line in enumerate(f, start=1):
+					if not line.strip():
+						continue
+					try:
+						regno, date, status = parse_line(line)
+					except InvalidRecord as err:
+						errors.append((path.name, number, str(err), line.strip()))
+						continue
+					rec = counts.setdefault(regno, [0, 0])
+					rec[1] += 1
+					if status == "P":
+						rec[0] += 1
+		except (PermissionError, UnicodeDecodeError) as err:
+			errors.append((path.name, 0, f"file skipped: {type(err).__name__}", ""))
+	out = Path(out_folder); out.mkdir(exist_ok=True)
+	report = {r: round(100 * p / t, 2) for r, (p, t) in counts.items()}
+	with open(out / "attendance_report.csv", "w", encoding="utf-8") as f:
+		f.write("register_number,present,total,percentage\n")
+		for r in sorted(counts):
+			f.write(f"{r},{counts[r][0]},{counts[r][1]},{report[r]:.2f}\n")
+	with open(out / "below_75.txt", "w", encoding="utf-8") as f:
+		for r in sorted(report):
+			if report[r] < 75:
+				f.write(f"{r} {report[r]:.2f}\n")
+	with open(out / "damaged_lines.log", "w", encoding="utf-8") as f:
+		for name, number, msg, text in errors:
+			f.write(f"{name}, line {number}: {msg} -> {text!r}\n")
+	return len(files), counts, report, errors
+
+if __name__ == "__main__":
+	import sys
+	for folder, out in (("data", "output"), ("trace", "output_trace")):
+		nfiles, counts, report, errors = process_month(folder, out)
+		print(f"== {folder}: {nfiles} files, {len(counts)} students, {len(errors)} damaged lines")
+		for p in sorted(Path(out).iterdir()):
+			print(f"- {p.name}")
+			print(p.read_text(encoding="utf-8").rstrip())

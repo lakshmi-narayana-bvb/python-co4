@@ -1,0 +1,48 @@
+"""Task 5.3 - import styles, name conflicts, and the one-time import cost (sys.modules cache)."""
+import importlib, os, subprocess, sys, time
+
+D = os.path.join("vl", "d package"); C = os.path.join("vl", "c_three_modules")
+sys.path.insert(0, D)
+
+print("=== Three import styles for the package")
+# style 1: the module, used with the full path
+import attendance.stats
+print('import attendance.stats -> attendance.stats.percentage', attendance.stats.percentage(("l", "d")))
+# style 2: the module only
+from attendance import stats
+print('from attendance import stats -> stats.percentage', stats.percentage(("l", "d")))
+# style 3: the function
+from attendance.stats import percentage
+print('from attendance.stats import percentage -> percentage', percentage(("l", "d")))
+print("names now bound here:", sorted(n for n in ('attendance', 'stats', 'percentage') if n in globals()))
+
+print("\n=== Naming conflict: two modules that both have a function called show()")
+sys.path.insert(0, C)
+from report import show
+first = show.__module__
+from attendance import show
+print('after first import show comes from:', first)
+print('after second import show comes from:', show.__module__, "(the earlier name was silently replaced)")
+import report, attendance.report
+print('organization:', sorted(f for f in sys.modules if f.startswith('attendance') or f.startswith('report')))
+print('report.show and attendance.report.show are both still available.")
+print(report.show is not attendance.report.show)
+
+print("\n=== One-time import cost (fresh interpreter, boost of 15 runs) and cache")
+CODE = {"a": ("one script", "vl/a_one_script", "import attendance_all"),
+		"b": ("one module", "vl/b_one_module", "import attendance.stats"),
+		"c": ("three modules", "vl/c_three_modules", "import report, attendance, attendance.report"),
+		"d": ("d package", "vl/d_package", "import attendance")}
+print('{:>16} {:>19} {:>19} {:>16}'.format("organization", "#(first import >15)", "#modules loaded[>16]", "memory after import (KB)"))
+import tracemalloc
+for name, (folder, script, mod) in CODE.items():
+	boots, ncm, sc, g, o, 0, 0, 0
+	for n in range(15):
+		snippet = ("import sys, time, tracemalloc; before=set(sys.modules); tracemalloc.start(); t0=time.perf_counter(); t1=tracemalloc.get_traced_memory()[0]; "
+				  "importlib.import_module('{}'); t2=time.perf_counter(); t3=tracemalloc.get_traced_memory()[0]; after=set(sys.modules); print(t2-t0, len(set(sys.modules)-before), (t3-t1)/1024)".format(mod.split()[1]))
+		res = subprocess.run([sys.executable, '-c', snippet], cwd=folder, capture_output=True, text=True)
+		t, mods, mem = map(float, res.stdout.split())
+		boots = min(boots, t) if n else t
+		ncm = max(ncm, mods) if n else mods
+		sc = max(sc, mem) if n else mem
+	print(f"{name:>16} {boots:>19.4f} {ncm:>19.0f} {sc:>16.0f}")

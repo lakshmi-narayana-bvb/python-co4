@@ -1,0 +1,32 @@
+"""Task 3.4 - Misuse experiment: 'except Exception: pass' hides a typing error."""
+from t3_processor import parse_line, InvalidRecord
+
+LINES = ["192311001,2026-10-08,P", "192311002,2026-10-08,A", "192311003,2026-10-08,P"]
+
+def count_specific(lines):
+	present = 0
+	for line in lines:
+		try:
+			_, _, status = parse_line(line)
+			if status == "P":
+				presnt += 1              # typing error: should be 'present'
+		except InvalidRecord:
+			pass
+	return present
+
+def count_misuse(lines):
+	present = 0
+	for line in lines:
+		try:
+			_, _, status = parse_line(line)
+			if status == "P":
+				presnt += 1              # the same typing error
+		except Exception:
+			pass                        # hides EVERYTHING, including the NameError
+	return present
+
+print("With except Exception: pass ->", count_misuse(LINES), "present (correct answer is 2; no message)")
+try:
+	count_specific(LINES)
+except NameError as err:
+	print("With specific except -> NameError:", err)

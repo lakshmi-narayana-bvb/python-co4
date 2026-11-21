@@ -1,0 +1,97 @@
+"""Task 3 - Exceptions in the attendance processor: custom exceptions, complete try statement, failure table (every failure is really provoked) and the misuse experiment."""
+import os, stat, tempfile
+
+class AttendanceError(Exception):
+	"""Base class of all errors raised by this processor."""
+
+class InvalidRecord(AttendanceError):
+	"""A line is damaged. Raised in parse_line(), handled in summarise()."""
+
+class DataFileError(AttendanceError):
+	"""A whole file cannot be used. Raised in read_lines(), handled in main()."""
+
+def parse_line(line):
+	parts = line.strip().split(",")
+	if len(parts) != 3:
+		raise InvalidRecord(f"expected 3 fields, found {len(parts)}")
+	if parts[2] not in ("P", "A"):
+		raise InvalidRecord(f"invalid status {parts[2]!r}")
+	return tuple(parts)
+
+def read_lines(path):
+	"""Complete try statement: try / except (specific) / else / finally, with raise ... from."""
+	f = None
+	try:
+		f = open(path, encoding="utf-8")
+		lines = f.readlines()
+	except FileNotFoundError as err:
+		raise DataFileError(f"{path}: file or folder not found") from err
+	except PermissionError as err:
+		raise DataFileError(f"{path}: permission denied") from err
+	except UnicodeDecodeError as err:
+		raise DataFileError(f"{path}: not valid UTF-8 (byte {err.start})") from err
+	else:
+		print(f" [else] {os.path.basename(path)} read: {len(lines)} lines")
+		return lines
+	finally:
+		if f is not None:
+			f.close()
+			print(f" [finally] {os.path.basename(path)} closed")
+
+def summarise(path):
+	present = absent = 0
+	errors = []
+	for number, line in enumerate(read_lines(path), start=1):
+		if not line.strip():
+			continue
+		try:
+			_, _, status = parse_line(line)
+		except InvalidRecord as err:
+			errors.append((number, str(err)))
+		else:
+			present += status == "P"
+			absent += status == "A"
+	return present, absent, errors
+
+def main(paths):
+	for p in paths:
+		try:
+			print(p, "->", summarise(p))
+		except DataFileError as err:
+			print(f"{p} -> skipped: {err}")
+			print(f" cause kept by 'raise ... from': {type(err.__cause__).__name__}")
+
+# --------------- failure table: provoke every failure for real ----------------
+def failure_table():
+	tmp = tempfile.mkdtemp()
+	good = os.path.join(tmp, "good.txt"); open(good, "w").write("1,2026-10-08,P\n")
+	latin = os.path.join(tmp, "latin.txt"); open(latin, "wb").write(b"192311001,2026-10-08,P\nM\xe9x9na,2026-10-08,A\n")
+	locked = os.path.join(tmp, "locked.txt"); open(locked, "w").write("1,2026-10-08,P\n"); os.chmod(locked, 0)
+	empty = os.path.join(tmp, "empty.txt"); open(empty, "w").close()
+	cases = [
+		("missing folder", lambda: open(os.path.join(tmp, "nofolder", "a.txt"))),
+		("missing file", lambda: open(os.path.join(tmp, "absent.txt"))),
+		("path is a folder", lambda: open(tmp)),
+		("permission denied", lambda: open(locked).read()),
+		("wrong encoding", lambda: open(latin, encoding="utf-8").read()),
+		("damaged line: too few fields", lambda: parse_line("192311003,2026-10-08")),
+		("damaged line: bad status", lambda: parse_line("192311004,2026-10-08,L")),
+		("short line indexed directly", lambda: "192311001,2026-10-08".split(",")[2]),
+		("non-numeric text to int()", lambda: int("abc")),
+		("empty file (no lines)", lambda: 100 * 0 / len(open(empty).readlines())),
+	]
+	print(f'{"failure":<30}{"exception raised"}')
+	for label, fn in cases:
+		try:
+			fn(); print(f"{label:<30}(no exception: running as administrator/root)")
+		except Exception as e:
+			print(f"{label:<30}{type(e).__name__}: {str(e)[:48]}")
+	os.chmod(locked, stat.S_IRUSR | stat.S_IWUSR)
+	return tmp, good, latin, empty
+
+if __name__ == "__main__":
+	print("== Failure table"); tmp, good, latin, empty = failure_table()
+	print("\n== Complete try statement")
+	bad = os.path.join(tmp, "damaged.txt")
+	open(bad, "w").write("192311001,2026-10-08,P\n192311002,2026-10-08\n192311003,2026-10-08,A\n")
+	main([bad, os.path.join(tmp, "absent.txt"), latin, empty])

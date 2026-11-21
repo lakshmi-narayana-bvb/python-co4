@@ -1,0 +1,23 @@
+"""Task 2 - creates the sample biometric files (8 days, 6 students, some damaged lines)."""
+import os, random
+
+random.seed(12)
+os.makedirs("data", exist_ok=True)
+students = [f"19231100{i}" for i in range(1, 7)]
+chance = {s: p for s, p in zip(students, (0.95, 0.9, 0.7, 0.6, 0.85, 0.5))}  # attendance habits
+for day in range(1, 9):
+	date = f"2026-10-{day:02d}"
+	lines = [f"{s},{date},{'P' if random.random() < chance[s] else 'A'}" for s in students]
+	if day == 3:
+		lines[2] = '192311003,2026-10-03'  # missing status field
+	if day == 5:
+		lines[4] = '192311005,2026-10-05,X'  # wrong status letter
+		lines.append("")  # empty last line
+	if day == 7:
+		lines[1] = '192311002'  # only one field
+	with open(f"data/attendance_{date}_A101.txt", "w", encoding="utf-8") as f:
+		f.write("\n".join(lines) + "\n")
+os.makedirs("trace", exist_ok=True)
+with open("trace/attendance_2026-10-09_A101.txt", "w", encoding="utf-8") as f:
+	f.write('192311001,2026-10-09,P\n192311002,2026-10-09\n192311003,2026-10-09,A\n')
+print("sample files written:", sorted(os.listdir("data")))

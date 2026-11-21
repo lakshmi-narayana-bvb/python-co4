@@ -1,0 +1,45 @@
+"""Task 1 - Alternative concept: f.read() / f.readlines() against iterating over the file (50,000 lines)"""
+import os, time, tracemalloc, random
+from decimal import Decimal
+
+random.seed(4)
+with open("mess_50000.txt", "w", encoding="utf-8") as f:
+	for i in range(50_000):
+		f.write(f"192300000 + {i},Student{i},{random.randint(1500, 4000)}.{random.choice(('00', '50', '75'))}\n")
+size = os.path.getsize("mess_50000.txt")
+
+def by_iteration():
+	t = Decimal(0)
+	with open("mess_50000.txt") as f:
+		for line in f:
+			t += Decimal(line.split(",")[2])
+	return t
+
+def by_read():
+	with open("mess_50000.txt") as f:
+		data = f.read()
+	return sum((Decimal(l.split(",")[2]) for l in data.split("\n") if l), Decimal(0))
+
+def by_readlines():
+	with open("mess_50000.txt") as f:
+		lines = f.readlines()
+	return sum((Decimal(l.split(",")[2]) for l in lines), Decimal(0))
+
+def by_plus_report():
+	rep = ""
+	with open("mess_50000.txt") as f:
+		for line in f:
+			p = line.split(",")
+			rep = rep + p[1] + " " + p[2]
+	return len(rep)
+
+print(f"File size: {size:,} bytes, 50,000 lines")
+print(f"{'method':<22}{'time (s)':>10}{'peak memory (KB)':>20}{'total':>16}")
+for name, fn in (("iterate over file", by_iteration), ("f.read()", by_read), ("f.readlines()", by_readlines)):
+	tracemalloc.start(); t0 = time.perf_counter(); r = fn(); dt = time.perf_counter() - t0
+	peak = tracemalloc.get_traced_memory()[1] / 1024; tracemalloc.stop()
+	print(f"{name:<22}{dt:10.4f}{peak:20.1f}{r:>16}")
+t0 = time.perf_counter(); n = by_plus_report(); print(f"\nreport built with repeated + : {time.perf_counter() - t0:10.4f} s ({n:,} characters)")
+with open("mess_50000.txt") as f:
+	r = "".join(l.split(",")[1] + " " + l.split(",")[2] for l in f)
+print(f"report built with join        : {time.perf_counter() - t0:10.4f} s ({len(r):,} characters)")

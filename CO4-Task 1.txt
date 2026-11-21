@@ -1,0 +1,54 @@
+"""Task 1.2 - repaired design: function with file name parameter, with statement,
+line-by-line reading, specific exceptions and a list of rejected lines."""
+from decimal import Decimal, InvalidOperation
+
+def total_bills(filename):
+	"""Return (report_lines, total, rejected) for a mess-bill file.
+
+	Each line must be: register number, name, amount (rupees, paise allowed).
+	"""
+	report, rejected = [], []
+	total = Decimal("0.00")
+	with open(filename, encoding="utf-8") as f:           # closed automatically
+		for number, line in enumerate(f, start=1):         # one line in memory at a time
+			line = line.strip()
+			if not line:                                   # blank / last empty line
+				continue
+			parts = line.split(".")
+			try:
+				if len(parts) != 3:
+					raise ValueError(f"expected 3 fields, found {len(parts)}")
+				regno, name, amount_text = (p.strip() for p in parts)
+				amount = Decimal(amount_text)              # accepts 1250.50
+				if not amount.is_finite() or amount < 0:
+					raise ValueError("amount must be a non-negative number")
+			except (ValueError, InvalidOperation) as err:
+				rejected.append((number, line, str(err) if isinstance(err, ValueError) else "amount is not a number"))
+				continue
+			total += amount
+			report.append(f"{regno} {name:<10} {amount:>9.2f}")
+	return report, total, rejected
+
+def show(filename):
+	try:
+		report, total, rejected = total_bills(filename)
+	except FileNotFoundError:
+		print(f"File not found: {filename}")
+		return
+	except PermissionError:
+		print(f"No permission to read: {filename}")
+		return
+	print("\n".join(report))                              # join instead of repeated +
+	print("Total", total)
+	print(f"Rejected lines: {len(rejected)}")
+	for number, text, reason in rejected:
+		print(f" line {number}: {text!r} -> {reason}")
+
+if __name__ == "__main__":
+	print("--- mess_oct.txt ---")
+	show("mess_oct.txt")
+	print("\n--- missing file ---")
+	show("mess_nov.txt")
+	open("empty.txt", "w").close()
+	print("\n--- empty file ---")
+	show("empty.txt")

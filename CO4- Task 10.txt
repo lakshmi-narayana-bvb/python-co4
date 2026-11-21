@@ -1,0 +1,44 @@
+"""Task 3 - EAFP (try/except) against LBYL (if checks): time per line when bad lines are rare and common."""
+import random, time
+
+random.seed(8)
+
+def make(n, bad):
+	out = []
+	for i in range(n):
+		if random.random() < bad:
+			out.append(random.choice([f"{i},2026-10-08", f"{i},2026-10-08,L", ""]))
+		else:
+			out.append(f"{i},2026-10-08,{random.choice('PA')}")
+	return out
+
+def eafp(lines):
+	"""Easier to ask forgiveness: just do it, let Python raise ValueError / KeyError."""
+	ok = bad = 0
+	valid = {"P": 1, "A": 1}
+	for l in lines:
+		try:
+			regno, date, status = l.strip().split(",")  # ValueError if not 3 fields
+			valid[status]                                # KeyError if status not P or A
+			ok += 1
+		except (ValueError, KeyError):
+			bad += 1
+	return ok, bad
+
+def lbyl(lines):
+	ok = bad = 0
+	for l in lines:
+		parts = l.strip().split(",")
+		if len(parts) == 3 and parts[2] in ("P", "A"):
+			ok += 1
+		else:
+			bad += 1
+	return ok, bad
+
+print(f"{'bad lines':>10}{'EAFP try/except (us/line)':>28}{'LBYL if checks (us/line)':>26}{'same count?':>13}")
+N = 200_000
+for frac in (0.0, 0.001, 0.05, 0.5):
+	data = make(N, frac)
+	t0 = time.perf_counter(); a = eafp(data); ta = (time.perf_counter() - t0) / N * 1e6
+	t0 = time.perf_counter(); b = lbyl(data); tb = (time.perf_counter() - t0) / N * 1e6
+	print(f"{frac * 100:>9.1f}%{ta:>28.3f}{tb:>26.3f}{a == b!s:>13}")

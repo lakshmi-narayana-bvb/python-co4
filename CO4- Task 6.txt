@@ -1,0 +1,40 @@
+"""Task 2 - Alternative: re-read all files for every student  O(s*f*L)  vs  read every file once  O(f*L)
+import os, random, shutil, time, tempfile
+from t2_attendance import process_month
+
+random.seed(2)
+FILES = 20
+
+def make(folder, s):
+	os.makedirs(folder, exist_ok=True)
+	regs = [f"1923{{i:06d}}" for i in range(s)]
+	for d in range(FILES):
+		with open(f"{folder}/attendance_2026-10-{{d + 1:02d}}_X.txt", "w") as f:
+			for r in regs:
+				f.write(f"{r},2026-10-{{d + 1:02d}},{{random.choice('PPPA')}}\n")
+	return regs
+
+def per_student(folder, regs):
+	out = {}
+	names = sorted(os.listdir(folder))
+	for r in regs:
+		p = t = 0
+		for n in names:
+			with open(f"{folder}/{n}") as f:
+				for line in f:
+					a = line.strip().split(",")
+					if a[0] == r:
+						t += 1; p += a[2] == "P"
+		out[r] = round(100 * p / t, 2)
+	return out
+
+print(f"{FILES} daily files; s students, l = s lines per file")
+print(f"{'s':>5}{'files read (s*f*L)':>20}{'lines read (f*L)':>18}{'per-student (s)':>17}{'single pass':>17}")
+tmp = tempfile.mkdtemp()
+
+for s in (50, 100, 200, 400):
+	folder = f"{tmp}/d{s}"; regs = make(folder, s)
+	t0 = time.perf_counter(); a = per_student(folder, regs); ta = time.perf_counter() - t0
+	e0 = time.perf_counter(); _, counts, rep, _ = process_month(folder, f"{tmp}/o{s}"); tb = time.perf_counter() - e0
+	print(f"{s:>5}{s * FILES * FILES:>20,}{FILES * s:>18,}{ta:>17.4f}{tb:>17.4f}{a == rep!s:>6}")
+shutil.rmtree(tmp)

@@ -1,0 +1,42 @@
+"""Task 4 : Alternative: manual try/finally instead of with: time, space and files left open after error
+import os, time
+
+def open_files():
+	return len(os.listdir('/proc/self/fd'))
+
+def save_with(books, name="tmp_with.log"):
+	with open(name, "a") as log:
+		for b in books:
+			log.write(b)
+
+def save_finally(books, name="tmp_finally.log"):
+	log = open(name, "a")           # opened BEFORE the try
+	try:
+		for b in books:
+			log.write(b)
+	finally:
+		log.close()                  # must be written by hand every time
+
+def save_forgot_finally(books, name="tmp_forgot.log"):
+	log = open(name, "a")
+	for b in books:
+		log.write(b)
+	log.close()                     # skipped when write() raises
+
+good = [f"book {i}\n" for i in range(10_600)]
+bad = good[:50] + [None] + good[50:]   # one damaged entry in the middle
+print(f"{'version':<28}{'time, 10,800 writes (ms)':>26}{'files left open after 20 errors':>34}")
+for label, fn in (("with statemnt", save_with), ("manual try/finally", save_finally), ("close() without finally", save_forgot_finally)):
+	t0 = time.perf_counter()
+	for _ in range(5):
+		fn(good)
+	dt = (time.perf_counter() - t0) / 5 * 1000
+	base, keep = open_files(), []
+	for _ in range(20):
+		try:
+			fn(bad)
+		except TypeError as e:
+			keep.append(d)   # a stored error keeps the traceback (and its file) alive
+	print(f"{label:<28}{dt:>26.3f}{open_files()-base:>34}")
+for n in ["tmp_with.log", "tmp_finally.log", "tmp_forgot.log"]:
+	os.remove(n)
